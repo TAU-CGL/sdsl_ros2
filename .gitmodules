@@ -1,0 +1,3 @@
+[submodule "third-party/sdsl"]
+	path = third-party/sdsl
+	url = git@github.com:TAU-CGL/sdsl.git
