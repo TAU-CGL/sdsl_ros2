@@ -42,10 +42,11 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 
 
 add_executable(sdsl_ros2 src/sdsl_ros2.cpp)
-ament_target_dependencies(sdsl_ros2 rclcpp std_msgs nav_msgs)
+ament_target_dependencies(sdsl_ros2 rclcpp std_msgs nav_msgs sensor_msgs)
 install(TARGETS
   sdsl_ros2
   DESTINATION lib/${PROJECT_NAME}

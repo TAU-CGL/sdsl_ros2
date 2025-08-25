@@ -14,6 +14,7 @@ using FT = Kernel::FT;
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "nav_msgs/msg/occupancy_grid.hpp"
+#include "sensor_msgs/msg/laser_scan.hpp"
 
 using namespace std::chrono_literals;
 
