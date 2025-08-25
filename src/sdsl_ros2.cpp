@@ -24,11 +24,15 @@ public:
         Node("sdsl_ros2") {
         mapSubscription_ = this->create_subscription<nav_msgs::msg::OccupancyGrid>(
             "map", 10, std::bind(&SDSL_ROS2::mapCallback, this, std::placeholders::_1));
+        sdsSubscription_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
+            "sds", 10, std::bind(&SDSL_ROS2::sdsCallback, this, std::placeholders::_1));
+        RCLCPP_INFO(this->get_logger(), "SDSL_ROS2 node has been started.");
     }
 
 private:
     // Subscriptions and publishers
     rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr mapSubscription_;
+    rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr sdsSubscription_;
 
     // SDSL structures
     sdsl::Env_R3_PCD<Kernel> environment_;
@@ -51,6 +55,10 @@ private:
         }
         environment_ = sdsl::Env_R3_PCD<Kernel>(points);
         RCLCPP_INFO(this->get_logger(), "Environment constructed with %zu points", points.size());
+    }
+
+    void sdsCallback(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
+        RCLCPP_INFO(this->get_logger(), "Received laser scan with %zu ranges", msg->ranges.size());
     }
 };
 
