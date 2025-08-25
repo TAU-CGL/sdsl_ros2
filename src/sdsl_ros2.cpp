@@ -5,6 +5,7 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
+#include "nav_msgs/msg/occupancy_grid.hpp"
 
 using namespace std::chrono_literals;
 
