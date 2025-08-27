@@ -82,13 +82,19 @@ private:
         }
 
         // sdsl::Predicate_Static<sdsl::R3xS1<FT>, sdsl::R3xS2<FT>, FT, sdsl::Env_R3_PCD<Kernel>> predicate;
-        sdsl::Predicate_Dynamic_Naive_Fast<sdsl::R3xS1<FT>, sdsl::R3xS2<FT>, FT, sdsl::Env_R3_PCD<Kernel>> predicate(ds.size(), ds.size()-4);
-        FT errorBound = 0.00; // TODO: Move to parameter
-        int recursionDepth = 5;    // TODO: Move to parameter
+        sdsl::Predicate_Dynamic_Naive_Fast<sdsl::R3xS1<FT>, sdsl::R3xS2<FT>, FT, sdsl::Env_R3_PCD<Kernel>> predicate(ds.size(), ds.size()-2);
+        FT errorBound = 0.02; // TODO: Move to parameter
+        int recursionDepth = 8;    // TODO: Move to parameter
+        
+        // Localize and report algorithm time
+        auto start = std::chrono::steady_clock::now();
         auto result = sdsl::localize<sdsl::R3xS1<FT>, sdsl::R3xS2<FT>, FT, sdsl::Env_R3_PCD<Kernel>>(
             environment_, gs, ds, errorBound, recursionDepth, predicate
         );
+        auto end = std::chrono::steady_clock::now();
+        std::chrono::duration<double> elapsed = end - start;
         RCLCPP_INFO(this->get_logger(), "Localization result: %d", result.size());
+        RCLCPP_INFO(this->get_logger(), "Localization took: %.2f seconds", elapsed.count());
 
         // Create a 2D pointcloud that is the midpoint of each voxel
         sensor_msgs::msg::PointCloud2 pointcloud_msg;
