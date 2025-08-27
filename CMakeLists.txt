@@ -47,6 +47,7 @@ find_package(sensor_msgs REQUIRED)
 
 add_executable(sdsl_ros2 src/sdsl_ros2.cpp)
 ament_target_dependencies(sdsl_ros2 rclcpp std_msgs nav_msgs sensor_msgs)
+target_link_libraries(sdsl_ros2 CGAL::CGAL OpenMP::OpenMP_CXX fmt::fmt ${Boost_LIBRARIES})
 install(TARGETS
   sdsl_ros2
   DESTINATION lib/${PROJECT_NAME}
