@@ -1,3 +1,4 @@
+#include <map>
 #include <chrono>
 #include <functional>
 #include <memory>
@@ -24,7 +25,7 @@ using namespace std::chrono_literals;
 class SDSL_ROS2 : public rclcpp::Node {
 public:
     SDSL_ROS2() :
-        Node("sdsl_ros2") {
+        Node("sdsl_ros2"), environmentInitialized_(false) {
         mapSubscription_ = this->create_subscription<nav_msgs::msg::OccupancyGrid>(
             "map", 10, std::bind(&SDSL_ROS2::mapCallback, this, std::placeholders::_1));
         sdsSubscription_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
@@ -41,29 +42,41 @@ private:
 
     // SDSL structures
     sdsl::Env_R3_PCD<Kernel> environment_;
+    bool environmentInitialized_;
 
     // ---------------------------------------------------------------------------------------------
     void mapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg) {
         RCLCPP_INFO(this->get_logger(), "Received map with size: %d x %d", msg->info.width, msg->info.height);
+
+        // Print a histogram of values of msg->data
+        std::map<int, int> histogram;
+        for (const auto& cell : msg->data) {
+            histogram[cell]++;
+        }
+        for (const auto& [value, count] : histogram) {
+            RCLCPP_INFO(this->get_logger(), "Value: %d, Count: %d", value, count);
+        }
 
         std::vector<Kernel::Point_3> points;
         for (int y = 0; y < msg->info.height; ++y)
         for (int x = 0; x < msg->info.width; ++x) {
             int idx = x + y * msg->info.width;
             int8_t cell = msg->data[idx];
-            if (cell < 0) continue;
-            if (cell > 20) continue; // TODO: Move the hardcoded threshold to a parameter
+            if (cell <= 0) continue; // Treat only occupied cells
             double wx = msg->info.origin.position.x + (x + 0.5) * msg->info.resolution;
             double wy = msg->info.origin.position.y + (y + 0.5) * msg->info.resolution;
             Kernel::Point_3 pt(wx, wy, 0.0);
             points.push_back(pt);
         }
         environment_ = sdsl::Env_R3_PCD<Kernel>(points);
+        environmentInitialized_ = true;
         RCLCPP_INFO(this->get_logger(), "Environment constructed with %zu points", points.size());
     }
 
     void sdsCallback(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
         RCLCPP_INFO(this->get_logger(), "Received laser scan with %zu ranges", msg->ranges.size());
+
+        if (!environmentInitialized_) return;
 
         std::vector<sdsl::R3xS2<FT>> gs;
         std::vector<FT> ds;
@@ -83,7 +96,7 @@ private:
 
         // sdsl::Predicate_Static<sdsl::R3xS1<FT>, sdsl::R3xS2<FT>, FT, sdsl::Env_R3_PCD<Kernel>> predicate;
         sdsl::Predicate_Dynamic_Naive_Fast<sdsl::R3xS1<FT>, sdsl::R3xS2<FT>, FT, sdsl::Env_R3_PCD<Kernel>> predicate(ds.size(), ds.size()-2);
-        FT errorBound = 0.02; // TODO: Move to parameter
+        FT errorBound = 0.05; // TODO: Move to parameter
         int recursionDepth = 8;    // TODO: Move to parameter
         
         // Localize and report algorithm time

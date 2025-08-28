@@ -20,7 +20,7 @@ def load_map_files(yaml_path):
     for y in range(height):
         for x in range(width):
             cell = map_array[y, x]
-            if cell < 0 or cell > 10:
+            if cell < 0 or cell > 20:
                 continue
             wx = map_info['origin'][0] + (x + 0.5) * map_info['resolution']
             wy = map_info['origin'][1] - (y + 0.5) * map_info['resolution']
@@ -77,15 +77,16 @@ def plot_map_points(points, midpoints=None):
 
 if __name__ == "__main__":
     MAP_NAME = "example/data/maps/lab446_20250827_1700/my_map"
+    # MAP_NAME = "example/data/maps/fl4_20250813_1725/my_map"
     yaml_path = MAP_NAME + ".yaml"
     sds_path = "example/data/sds.txt"
     
     points = load_map_files(yaml_path)    
     gs, ds = parse_sds_txt(sds_path)
 
-    ds[3] = 0.2
-    ds[5] = 0.2
-    ds[11] = 0.2
+    ds[3] *= 0.5
+    ds[5] *= 0.5
+    ds[11] *= 0.5
 
     env = sdsl.Env_R3_PCD(points)
     odometry = []
@@ -94,7 +95,7 @@ if __name__ == "__main__":
     measurements = ds.tolist()
 
 
-    localization = sdsl.localize_R3_pcd_dynamic(env, odometry, measurements, 0.05, 8, 13)
+    localization = sdsl.localize_R3_pcd_dynamic(env, odometry, measurements, 0.15, 8, 13)
 
     midpoints = []
     for v in localization:
