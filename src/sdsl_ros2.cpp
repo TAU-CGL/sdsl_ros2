@@ -6,10 +6,11 @@
 #include <vector>
 
 #define SDSL_CPP_ONLY
-#include <sdsl.hpp>
-#include <environments/env_R3_pcd.hpp>
-#include <predicates/predicate_static.hpp>
-#include <predicates/predicate_dynamic.hpp>
+#include <sdsl/sdsl.hpp>
+#include <sdsl/environments/env_R3_pcd.hpp>
+#include <sdsl/predicates/predicate_static.hpp>
+#include <sdsl/predicates/predicate_dynamic.hpp>
+#include "sdsl/splitters/splitter_R3xS1.hpp"
 #include <CGAL/Simple_cartesian.h>
 using Kernel = CGAL::Simple_cartesian<double>;
 using FT = Kernel::FT;
@@ -95,14 +96,15 @@ private:
         }
 
         // sdsl::Predicate_Static<sdsl::R3xS1<FT>, sdsl::R3xS2<FT>, FT, sdsl::Env_R3_PCD<Kernel>> predicate;
+        sdsl::Splitter_R3xS1<FT> splitter;
         sdsl::Predicate_Dynamic_Naive_Fast<sdsl::R3xS1<FT>, sdsl::R3xS2<FT>, FT, sdsl::Env_R3_PCD<Kernel>> predicate(ds.size(), ds.size()-2);
         FT errorBound = 0.05; // TODO: Move to parameter
         int recursionDepth = 8;    // TODO: Move to parameter
         
         // Localize and report algorithm time
         auto start = std::chrono::steady_clock::now();
-        auto result = sdsl::localize<sdsl::R3xS1<FT>, sdsl::R3xS2<FT>, FT, sdsl::Env_R3_PCD<Kernel>>(
-            environment_, gs, ds, errorBound, recursionDepth, predicate
+        auto result = sdsl::localize<sdsl::R3xS1<FT>, sdsl::Splitter_R3xS1<FT>, sdsl::R3xS2<FT>, FT, sdsl::Env_R3_PCD<Kernel>>(
+            environment_, gs, ds, errorBound, recursionDepth, predicate, splitter
         );
         auto end = std::chrono::steady_clock::now();
         std::chrono::duration<double> elapsed = end - start;

@@ -45,11 +45,22 @@ find_package(nav_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 
 
+SET(SDSL_AMENT_DEPENDICEIS rclcpp std_msgs nav_msgs sensor_msgs)
+SET(SDSL_LINK_LIBRARIES CGAL::CGAL OpenMP::OpenMP_CXX fmt::fmt ${Boost_LIBRARIES})
+
 add_executable(sdsl_ros2 src/sdsl_ros2.cpp)
-ament_target_dependencies(sdsl_ros2 rclcpp std_msgs nav_msgs sensor_msgs)
-target_link_libraries(sdsl_ros2 CGAL::CGAL OpenMP::OpenMP_CXX fmt::fmt ${Boost_LIBRARIES})
+ament_target_dependencies(sdsl_ros2 ${SDSL_AMENT_DEPENDICEIS})
+target_link_libraries(sdsl_ros2 ${SDSL_LINK_LIBRARIES})
 install(TARGETS
   sdsl_ros2
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+add_executable(odometry_fusion src/odometry_fusion.cpp)
+ament_target_dependencies(odometry_fusion ${SDSL_AMENT_DEPENDICEIS})
+target_link_libraries(odometry_fusion ${SDSL_LINK_LIBRARIES})
+install(TARGETS
+  odometry_fusion
   DESTINATION lib/${PROJECT_NAME}
 )
 
