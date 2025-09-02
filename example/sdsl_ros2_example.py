@@ -2,6 +2,7 @@ import numpy as np
 import yaml
 from PIL import Image
 import os
+import time
 
 import sdsl
 
@@ -76,17 +77,28 @@ def plot_map_points(points, midpoints=None):
 
 
 if __name__ == "__main__":
-    MAP_NAME = "example/data/maps/lab446_20250827_1700/my_map"
+    # MAP_NAME = "example/data/maps/lab446_20250827_1700/my_map"
     # MAP_NAME = "example/data/maps/fl4_20250813_1725/my_map"
+    MAP_NAME = "example/data/maps/fl4_lowres/my_map"
     yaml_path = MAP_NAME + ".yaml"
     sds_path = "example/data/sds.txt"
     
     points = load_map_files(yaml_path)    
     gs, ds = parse_sds_txt(sds_path)
 
+    for i in range(gs.shape[0]):
+        print(f"odometry.push_back(R3xS2<FT>({','.join([str(x) for x in gs[i]])}));")
+    for d in ds:
+        print(f"measurements.push_back({d});")
+
     ds[3] *= 0.5
     ds[5] *= 0.5
     ds[11] *= 0.5
+
+    num_points = points.shape[0]
+    with open("example/tmp/points.txt", "w") as fp:
+        for i in range(num_points):
+            fp.write(f"{points[i][0]},{points[i][1]},{points[i][2]}\n")
 
     env = sdsl.Env_R3_PCD(points)
     odometry = []
@@ -94,8 +106,22 @@ if __name__ == "__main__":
         odometry.append(sdsl.R3xS2(*g))
     measurements = ds.tolist()
 
+    schedule = [
+        [2, 4, 1, 2],
+        [3, 3, 1, 3], 
+        [3, 3, 1, 3], 
+        [2, 2, 1, 2],
+        [2, 2, 1, 2],
+        [2, 2, 1, 2],
+        [2, 2, 1, 2],
+        [2, 2, 1, 2],
+        [2, 2, 1, 2],
+    ]
 
-    localization = sdsl.localize_R3_pcd_dynamic(env, odometry, measurements, 0.15, 8, 13)
+    start = time.time()
+    localization = sdsl.localize_R3_pcd_dynamic_scheduled(env, odometry, measurements, 0.05, 7, 13, schedule)
+    end = time.time()
+    print(f"Took {end-start:.3f}[sec]")
 
     midpoints = []
     for v in localization:
