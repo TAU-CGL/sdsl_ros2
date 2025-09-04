@@ -72,6 +72,8 @@
         "ranges": "cpp",
         "stdfloat": "cpp",
         "stop_token": "cpp",
-        "thread": "cpp"
+        "thread": "cpp",
+        "deque": "cpp",
+        "forward_list": "cpp"
     }
 }
