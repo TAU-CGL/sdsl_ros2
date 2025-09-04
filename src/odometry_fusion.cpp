@@ -18,15 +18,11 @@ using FT = Kernel::FT;
 
 using namespace std::chrono_literals;
 
-struct TransformWithTimestamp {
-    geometry_msgs::msg::TransformStamped transform;
-    rclcpp::Time timestamp;
-};
-
-struct PointCloudWithTimestampAndScores {
+struct PointCloud {
     std::vector<Kernel::Point_3> points;
     std::vector<double> scores; // One score per point
     rclcpp::Time timestamp;
+    geometry_msgs::msg::TransformStamped transform; // Transform at the time of the point cloud
     bool isNull = true;
 };
 
@@ -39,7 +35,6 @@ public:
 
         tfBuffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
         tfListener_ = std::make_shared<tf2_ros::TransformListener>(*tfBuffer_);
-        timer_ = this->create_wall_timer(100ms, std::bind(&SDSL_OdometryFusion::transformCallback, this));
     }
 
 private:
@@ -47,22 +42,28 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sdslRawSubscriber_;
     std::unique_ptr<tf2_ros::Buffer> tfBuffer_;
     std::shared_ptr<tf2_ros::TransformListener> tfListener_;
-    rclcpp::TimerBase::SharedPtr timer_;
     
-
     double lambda_ = 0.99; // Forgetting rate
-    std::vector<TransformWithTimestamp> transformHistory_;
-    PointCloudWithTimestampAndScores prevPointCloud_;
+    PointCloud prevPointCloud_;
 
     void sdslRawCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
         RCLCPP_INFO(this->get_logger(), "Received SDSL raw point cloud with %d points", msg->width);
 
-        // First, check if there is a transform older then 
-
-        PointCloudWithTimestampAndScores pointCloud;
+        PointCloud pointCloud;
         pointCloud.points = pointCloudFromMsg(msg);
         pointCloud.timestamp = msg->header.stamp;
         pointCloud.isNull = false;
+
+        // Try getting the transform (if we can't, skip this message)
+        try {
+            pointCloud.transform = tfBuffer_->lookupTransform(
+                "odom", "base_footprint", tf2::TimePointZero);
+        } catch (tf2::TransformException &ex) {
+            RCLCPP_WARN(this->get_logger(), "Could not get transform: %s", ex.what());
+            return;
+        }
+
+        // We now have a good point cloud
 
         if (prevPointCloud_.isNull) {
             // First point cloud, initialize scores to 1.0
@@ -71,6 +72,8 @@ private:
             RCLCPP_INFO(this->get_logger(), "Initialized first point cloud with uniform scores");
             return;
         }
+        
+        RCLCPP_INFO(this->get_logger(), "Fusing with previous point cloud with %d points", prevPointCloud_.points.size());
     }
 
     std::vector<Kernel::Point_3> pointCloudFromMsg(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
@@ -91,7 +94,6 @@ private:
             // Get transform from base_footprint to odom
             geometry_msgs::msg::TransformStamped transform = tfBuffer_->lookupTransform(
                 "odom", "base_footprint", tf2::TimePointZero);
-            
             // Print the transform details
             // RCLCPP_INFO(this->get_logger(), 
             //     "Transform base_footprint -> odom:");
@@ -106,71 +108,11 @@ private:
             //     transform.transform.rotation.y,
             //     transform.transform.rotation.z,
             //     transform.transform.rotation.w);
-
-            transformHistory_.push_back({transform, this->now()});
         } catch (tf2::TransformException & ex) {
             RCLCPP_WARN(this->get_logger(), "Could not get transform: %s", ex.what());
         }
     }
 
-    void getInterpolatedTransform(double queryTime) {
-        if (transformHistory_.size() < 2) {
-            RCLCPP_WARN(this->get_logger(), "Not enough transform history for interpolation");
-            return;
-        }
-
-        // Find two transforms surrounding the query time
-        TransformWithTimestamp before, after;
-        for (size_t i = 1; i < transformHistory_.size(); ++i) {
-            if (transformHistory_[i].timestamp.seconds() >= queryTime) {
-                before = transformHistory_[i-1];
-                after = transformHistory_[i];
-                break;
-            }
-        }
-
-        double t = (queryTime - before.timestamp.seconds()) /
-                (after.timestamp.seconds() - before.timestamp.seconds());
-
-        // Linear interpolation of translation
-        geometry_msgs::msg::Vector3 interpTranslation;
-        interpTranslation.x = (1 - t) * before.transform.transform.translation.x +
-                              t * after.transform.transform.translation.x;
-        interpTranslation.y = (1 - t) * before.transform.transform.translation.y +
-                              t * after.transform.transform.translation.y;
-        interpTranslation.z = (1 - t) * before.transform.transform.translation.z +
-                              t * after.transform.transform.translation.z;
-
-        // Slerp for rotation
-        tf2::Quaternion q_before, q_after, q_interp;
-        tf2::fromMsg(before.transform.transform.rotation, q_before);
-        tf2::fromMsg(after.transform.transform.rotation, q_after);
-        q_interp = q_before.slerp(q_after, t);
-
-        geometry_msgs::msg::Quaternion interpRotation = tf2::toMsg(q_interp);
-
-        RCLCPP_INFO(this->get_logger(), 
-            "Interpolated Transform at time %.3f:", queryTime);
-        RCLCPP_INFO(this->get_logger(), 
-            "  Translation: [x=%.3f, y=%.3f, z=%.3f]",
-            interpTranslation.x,
-            interpTranslation.y,
-            interpTranslation.z);
-        RCLCPP_INFO(this->get_logger(), 
-            "  Rotation: [x=%.3f, y=%.3f, z=%.3f, w=%.3f]",
-            interpRotation.x,
-            interpRotation.y,
-            interpRotation.z,
-            interpRotation.w);
-    }
-
-
-    void deleteOldTransforms(double cutoffTime) {
-        while (!transformHistory_.empty() && 
-            transformHistory_.front().timestamp.seconds() < cutoffTime) {
-            transformHistory_.erase(transformHistory_.begin());
-        }
-    }
 
 };
 
