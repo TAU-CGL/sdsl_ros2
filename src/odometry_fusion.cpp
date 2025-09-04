@@ -40,13 +40,14 @@ struct PointCloud {
     }
     int nearestNeighborIndex(const Kernel::Point_3& query) {
         if (!kdTree) return -1;
+        
         CGAL::K_neighbor_search<CGAL::Search_traits_3<Kernel>> knn(*kdTree, query, 1);
         auto it = knn.begin();
         if (it == knn.end()) return -1;
         const Kernel::Point_3& nearest = it->first;
         // Find index of nearest in original points
         for (size_t i = 0; i < points.size(); ++i) {
-            if (points[i] == nearest) return i;
+            if (points[i].x() == nearest.x() && points[i].y() == nearest.y() && points[i].z() == nearest.z()) return i;
         }
         return -1;
     }
@@ -58,6 +59,7 @@ public:
         Node("odometry_fusion") {
         sdslRawSubscriber_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
             "sdsl_raw", 10, std::bind(&SDSL_OdometryFusion::sdslRawCallback, this, std::placeholders::_1));
+        sdslWithScoresPublisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("sdsl_with_scores", 10);
 
         tfBuffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
         tfListener_ = std::make_shared<tf2_ros::TransformListener>(*tfBuffer_);
@@ -66,6 +68,7 @@ public:
 private:
     // Subscriptions and publishes
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sdslRawSubscriber_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr sdslWithScoresPublisher_;
     std::unique_ptr<tf2_ros::Buffer> tfBuffer_;
     std::shared_ptr<tf2_ros::TransformListener> tfListener_;
     
@@ -96,6 +99,7 @@ private:
         if (prevPointCloud_.isNull || prevPointCloud_.points.empty()) {
             // First point cloud, initialize scores to 1.0
             pointCloud.scores = std::vector<double>(pointCloud.points.size(), 1.0 / pointCloud.points.size());
+            publishPointCloudWithScores(pointCloud);
             prevPointCloud_ = pointCloud;
             RCLCPP_INFO(this->get_logger(), "Initialized first point cloud with uniform scores");
             return;
@@ -125,7 +129,59 @@ private:
             score /= totalScore;
         }
 
+        publishPointCloudWithScores(pointCloud);
         prevPointCloud_ = pointCloud;
+    }
+
+    void publishPointCloudWithScores(const PointCloud& pointCloud) {
+        sensor_msgs::msg::PointCloud2 pointcloud_msg;
+        pointcloud_msg.header.stamp = pointCloud.timestamp;
+        pointcloud_msg.header.frame_id = "map";
+        pointcloud_msg.height = 1;
+        pointcloud_msg.width = pointCloud.points.size();
+        pointcloud_msg.is_dense = true;
+        
+        // Define point cloud fields (x, y, z, score)
+        sensor_msgs::msg::PointField field_x, field_y, field_z, field_score;
+        field_x.name = "x";
+        field_x.offset = 0;
+        field_x.datatype = sensor_msgs::msg::PointField::FLOAT32;
+        field_x.count = 1;
+        
+        field_y.name = "y";
+        field_y.offset = 4;
+        field_y.datatype = sensor_msgs::msg::PointField::FLOAT32;
+        field_y.count = 1;
+
+        field_z.name = "z";
+        field_z.offset = 8;
+        field_z.datatype = sensor_msgs::msg::PointField::FLOAT32;
+        field_z.count = 1;
+
+        field_score.name = "score";
+        field_score.offset = 12;
+        field_score.datatype = sensor_msgs::msg::PointField::FLOAT32;
+        field_score.count = 1;
+                
+        pointcloud_msg.fields = {field_x, field_y, field_z, field_score};
+        pointcloud_msg.point_step = 4 * 4; // 4 floats * 4 bytes each
+        pointcloud_msg.row_step = pointcloud_msg.point_step * pointcloud_msg.width;
+        
+        // Populate point cloud data
+        pointcloud_msg.data.resize(pointcloud_msg.row_step);
+        float* data_ptr = reinterpret_cast<float*>(pointcloud_msg.data.data());
+        
+        for (size_t i = 0; i < pointCloud.points.size(); ++i) {
+            const Kernel::Point_3& pt = pointCloud.points[i];
+            double score = pointCloud.scores[i];
+            
+            data_ptr[i * 4 + 0] = static_cast<float>(pt.x());
+            data_ptr[i * 4 + 1] = static_cast<float>(pt.y());
+            data_ptr[i * 4 + 2] = static_cast<float>(pt.z());
+            data_ptr[i * 4 + 3] = static_cast<float>(score);
+        }
+ 
+        sdslWithScoresPublisher_->publish(pointcloud_msg);
     }
 
     std::vector<Kernel::Point_3> pointCloudFromMsg(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
