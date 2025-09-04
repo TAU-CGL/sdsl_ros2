@@ -70,6 +70,7 @@ private:
     std::shared_ptr<tf2_ros::TransformListener> tfListener_;
     
     double lambda_ = 0.99; // Forgetting rate
+    double eps_ = 0.0001; // Small constant to avoid zero division
     PointCloud prevPointCloud_;
 
     void sdslRawCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
@@ -106,18 +107,25 @@ private:
         Eigen::Matrix3d T = computeTransformDifference(
             prevPointCloud_.transform, pointCloud.transform);
         for (size_t i = 0; i < pointCloud.points.size(); ++i) {
-            const auto& pt = pointCloud.points[i];
-            
-            // Computer T = T_prev * inv(T_curr)
-            // We need a Kernel::Point_3 that is T * pt
-            // Node that T is actully in SE(2), z = 0
-            double x = pt.x();
-
-
+            Kernel::Point_3 pt = pointCloud.points[i];
+            pt = transformPoint(T, pt);
             int nnIndex = prevPointCloud_.nearestNeighborIndex(pt);
-            
+            double prevScore = (nnIndex >= 0) ? prevPointCloud_.scores[nnIndex] : 0.0;
+            Kernel::Point_3 nnPt = (nnIndex >= 0) ? prevPointCloud_.points[nnIndex] : Kernel::Point_3(0,0,0);
+            double dist = std::sqrt(CGAL::squared_distance(pt, nnPt));
+
+            double newScore = 1.0 / (dist + eps_);
+            totalScore += newScore;
+
+            newScore *= pow(prevScore, lambda_);
+            pointCloud.scores.push_back(newScore);
+        }
+        // Normalize scores
+        for (double& score : pointCloud.scores) {
+            score /= totalScore;
         }
 
+        prevPointCloud_ = pointCloud;
     }
 
     std::vector<Kernel::Point_3> pointCloudFromMsg(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
