@@ -28,6 +28,7 @@ find_package(CGAL REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(fmt REQUIRED)
 find_package(glm REQUIRED)
+find_package(Eigen3 REQUIRED)
 find_package(Boost COMPONENTS container program_options REQUIRED)
 
 include_directories(${CMAKE_SOURCE_DIR}/third-party/sdsl/sdsl/include)
@@ -50,7 +51,7 @@ find_package(geometry_msgs REQUIRED)
 
 
 SET(SDSL_AMENT_DEPENDICEIS rclcpp std_msgs nav_msgs sensor_msgs tf2 tf2_ros tf2_geometry_msgs geometry_msgs)
-SET(SDSL_LINK_LIBRARIES CGAL::CGAL OpenMP::OpenMP_CXX fmt::fmt ${Boost_LIBRARIES})
+SET(SDSL_LINK_LIBRARIES CGAL::CGAL OpenMP::OpenMP_CXX fmt::fmt ${Boost_LIBRARIES} Eigen3::Eigen)
 
 add_executable(sdsl_ros2 src/sdsl_ros2.cpp)
 ament_target_dependencies(sdsl_ros2 ${SDSL_AMENT_DEPENDICEIS})
