@@ -12,6 +12,9 @@
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "geometry_msgs/msg/transform_stamped.hpp"
 
+#include <CGAL/Kd_tree.h>
+#include <CGAL/Search_traits_3.h>
+#include <CGAL/K_neighbor_search.h>
 #include <CGAL/Simple_cartesian.h>
 using Kernel = CGAL::Simple_cartesian<double>;
 using FT = Kernel::FT;
@@ -24,6 +27,27 @@ struct PointCloud {
     rclcpp::Time timestamp;
     geometry_msgs::msg::TransformStamped transform; // Transform at the time of the point cloud
     bool isNull = true;
+
+    // Nearest neighbor search
+    using KdTree = CGAL::Kd_tree<CGAL::Search_traits_3<Kernel>>;
+    std::shared_ptr<KdTree> kdTree;
+
+    void buildKdTree() {
+        if (points.empty()) return;
+        kdTree = std::make_shared<KdTree>(points.begin(), points.end());
+    }
+    int nearestNeighborIndex(const Kernel::Point_3& query) {
+        if (!kdTree) return -1;
+        CGAL::K_neighbor_search<CGAL::Search_traits_3<Kernel>> knn(*kdTree, query, 1);
+        auto it = knn.begin();
+        if (it == knn.end()) return -1;
+        const Kernel::Point_3& nearest = it->first;
+        // Find index of nearest in original points
+        for (size_t i = 0; i < points.size(); ++i) {
+            if (points[i] == nearest) return i;
+        }
+        return -1;
+    }
 };
 
 class SDSL_OdometryFusion : public rclcpp::Node {
@@ -53,7 +77,8 @@ private:
         pointCloud.points = pointCloudFromMsg(msg);
         pointCloud.timestamp = msg->header.stamp;
         pointCloud.isNull = false;
-
+        pointCloud.buildKdTree();
+        
         // Try getting the transform (if we can't, skip this message)
         try {
             pointCloud.transform = tfBuffer_->lookupTransform(
@@ -65,7 +90,7 @@ private:
 
         // We now have a good point cloud
 
-        if (prevPointCloud_.isNull) {
+        if (prevPointCloud_.isNull || prevPointCloud_.points.empty()) {
             // First point cloud, initialize scores to 1.0
             pointCloud.scores = std::vector<double>(pointCloud.points.size(), 1.0 / pointCloud.points.size());
             prevPointCloud_ = pointCloud;
