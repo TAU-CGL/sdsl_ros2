@@ -48,25 +48,50 @@ find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(rosidl_generator_cpp REQUIRED)
+find_package(rosidl_typesupport_cpp REQUIRED)
+set(msg_files
+  "msg/PointCloudWithTransform.msg"
+)
 
+rosidl_generate_interfaces(${PROJECT_NAME}
+  ${msg_files}
+  DEPENDENCIES sensor_msgs geometry_msgs
+)
 
 SET(SDSL_AMENT_DEPENDICEIS rclcpp std_msgs nav_msgs sensor_msgs tf2 tf2_ros tf2_geometry_msgs geometry_msgs)
 SET(SDSL_LINK_LIBRARIES CGAL::CGAL OpenMP::OpenMP_CXX fmt::fmt ${Boost_LIBRARIES} Eigen3::Eigen)
 
-add_executable(sdsl_ros2 src/sdsl_ros2.cpp)
-ament_target_dependencies(sdsl_ros2 ${SDSL_AMENT_DEPENDICEIS})
-target_link_libraries(sdsl_ros2 ${SDSL_LINK_LIBRARIES})
+add_executable(sdsl_ros2_node src/sdsl_ros2.cpp)
+ament_target_dependencies(sdsl_ros2_node ${SDSL_AMENT_DEPENDICEIS})
+target_link_libraries(sdsl_ros2_node ${SDSL_LINK_LIBRARIES})
+rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
+target_link_libraries(sdsl_ros2_node "${cpp_typesupport_target}")
 install(TARGETS
-  sdsl_ros2
+  sdsl_ros2_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
-add_executable(odometry_fusion src/odometry_fusion.cpp)
-ament_target_dependencies(odometry_fusion ${SDSL_AMENT_DEPENDICEIS})
-target_link_libraries(odometry_fusion ${SDSL_LINK_LIBRARIES})
+add_executable(odometry_fusion_node src/odometry_fusion.cpp)
+ament_target_dependencies(odometry_fusion_node ${SDSL_AMENT_DEPENDICEIS})
+target_link_libraries(odometry_fusion_node ${SDSL_LINK_LIBRARIES})
+target_link_libraries(odometry_fusion_node "${cpp_typesupport_target}")
 install(TARGETS
-  odometry_fusion
+  odometry_fusion_node
   DESTINATION lib/${PROJECT_NAME}
+)
+
+add_executable(map_republisher_node src/map_republisher.cpp)
+ament_target_dependencies(map_republisher_node rclcpp nav_msgs)
+install(TARGETS
+  map_republisher_node
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(DIRECTORY
+  config/
+  launch/
+  DESTINATION share/${PROJECT_NAME}
 )
 
 if(BUILD_TESTING)

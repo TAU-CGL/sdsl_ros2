@@ -20,6 +20,12 @@ using FT = Kernel::FT;
 #include "nav_msgs/msg/occupancy_grid.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
+#include "tf2_ros/transform_listener.h"
+#include "tf2_ros/buffer.h"
+#include "tf2/exceptions.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
+#include "geometry_msgs/msg/transform_stamped.hpp"
+#include "sdsl_ros2/msg/point_cloud_with_transform.hpp"
 
 using namespace std::chrono_literals;
 
@@ -31,7 +37,11 @@ public:
             "map", 10, std::bind(&SDSL_ROS2::mapCallback, this, std::placeholders::_1));
         sdsSubscription_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
             "sds", 10, std::bind(&SDSL_ROS2::sdsCallback, this, std::placeholders::_1));
-        pcPublisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("sdsl_raw", 10);
+        pcWithTransformPublisher_ = this->create_publisher<sdsl_ros2::msg::PointCloudWithTransform>("sdsl_raw", 10);
+        
+        tfBuffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
+        tfListener_ = std::make_shared<tf2_ros::TransformListener>(*tfBuffer_);
+        
         RCLCPP_INFO(this->get_logger(), "SDSL_ROS2 node has been started.");
     }
 
@@ -39,7 +49,11 @@ private:
     // Subscriptions and publishers
     rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr mapSubscription_;
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr sdsSubscription_;
-    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pcPublisher_;
+    rclcpp::Publisher<sdsl_ros2::msg::PointCloudWithTransform>::SharedPtr pcWithTransformPublisher_;
+    
+    // TF2 members
+    std::unique_ptr<tf2_ros::Buffer> tfBuffer_;
+    std::shared_ptr<tf2_ros::TransformListener> tfListener_;
 
     // SDSL structures
     sdsl::Env_R3_PCD<Kernel> environment_;
@@ -79,6 +93,16 @@ private:
 
         if (!environmentInitialized_) return;
 
+        // Capture transform at the beginning, before computation
+        geometry_msgs::msg::TransformStamped transform;
+        try {
+            transform = tfBuffer_->lookupTransform(
+                "odom", "base_footprint", tf2::TimePointZero);
+        } catch (tf2::TransformException &ex) {
+            RCLCPP_WARN(this->get_logger(), "Could not get transform: %s", ex.what());
+            return;
+        }
+
         std::vector<sdsl::R3xS2<FT>> gs;
         std::vector<FT> ds;
         for (size_t i = 0; i < msg->ranges.size(); ++i) {
@@ -103,7 +127,7 @@ private:
         }
 
         sdsl::ScheduledSplitter_R3xS1<FT> splitter = sdsl::ScheduledSplitter_R3xS1<FT>(schedule);
-        sdsl::Predicate_Dynamic_Naive_Fast<sdsl::R3xS1<FT>, sdsl::R3xS2<FT>, FT, sdsl::Env_R3_PCD<Kernel>> predicate(ds.size(), ds.size()-2);
+        sdsl::Predicate_Dynamic_Naive_Fast<sdsl::R3xS1<FT>, sdsl::R3xS2<FT>, FT, sdsl::Env_R3_PCD<Kernel>> predicate(ds.size(), ds.size()-4);
         FT errorBound = 0.05; // TODO: Move to parameter
         int recursionDepth = 8;    // TODO: Move to parameter
         
@@ -161,8 +185,11 @@ private:
             data_ptr[i * 3 + 2] = static_cast<float>(midpoint.getZDouble());
         }
         
-        // Publish the pointcloud
-        pcPublisher_->publish(pointcloud_msg);
+        // Create and publish the combined message
+        sdsl_ros2::msg::PointCloudWithTransform combined_msg;
+        combined_msg.point_cloud = pointcloud_msg;
+        combined_msg.transform = transform;
+        pcWithTransformPublisher_->publish(combined_msg);
 
     }
 };

@@ -7,11 +7,8 @@
 #include "nav_msgs/msg/occupancy_grid.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
-#include "tf2_ros/transform_listener.h"
-#include "tf2_ros/buffer.h"
-#include "tf2/exceptions.h"
-#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "geometry_msgs/msg/transform_stamped.hpp"
+#include "sdsl_ros2/msg/point_cloud_with_transform.hpp"
 
 #include <Eigen/Dense>
 #include <CGAL/Kd_tree.h>
@@ -57,42 +54,29 @@ class SDSL_OdometryFusion : public rclcpp::Node {
 public:
     SDSL_OdometryFusion() :
         Node("odometry_fusion") {
-        sdslRawSubscriber_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+        sdslRawSubscriber_ = this->create_subscription<sdsl_ros2::msg::PointCloudWithTransform>(
             "sdsl_raw", 10, std::bind(&SDSL_OdometryFusion::sdslRawCallback, this, std::placeholders::_1));
         sdslWithScoresPublisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("sdsl_with_scores", 10);
-
-        tfBuffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
-        tfListener_ = std::make_shared<tf2_ros::TransformListener>(*tfBuffer_);
     }
 
 private:
     // Subscriptions and publishes
-    rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sdslRawSubscriber_;
+    rclcpp::Subscription<sdsl_ros2::msg::PointCloudWithTransform>::SharedPtr sdslRawSubscriber_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr sdslWithScoresPublisher_;
-    std::unique_ptr<tf2_ros::Buffer> tfBuffer_;
-    std::shared_ptr<tf2_ros::TransformListener> tfListener_;
     
     double lambda_ = 0.99; // Forgetting rate
     double eps_ = 0.0001; // Small constant to avoid zero division
     PointCloud prevPointCloud_;
 
-    void sdslRawCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg) {
-        RCLCPP_INFO(this->get_logger(), "Received SDSL raw point cloud with %d points", msg->width);
+    void sdslRawCallback(const sdsl_ros2::msg::PointCloudWithTransform::SharedPtr msg) {
+        RCLCPP_INFO(this->get_logger(), "Received SDSL raw point cloud with %d points", msg->point_cloud.width);
 
         PointCloud pointCloud;
-        pointCloud.points = pointCloudFromMsg(msg);
-        pointCloud.timestamp = msg->header.stamp;
+        pointCloud.points = pointCloudFromMsg(std::make_shared<sensor_msgs::msg::PointCloud2>(msg->point_cloud));
+        pointCloud.timestamp = msg->point_cloud.header.stamp;
+        pointCloud.transform = msg->transform;
         pointCloud.isNull = false;
         pointCloud.buildKdTree();
-        
-        // Try getting the transform (if we can't, skip this message)
-        try {
-            pointCloud.transform = tfBuffer_->lookupTransform(
-                "odom", "base_footprint", tf2::TimePointZero);
-        } catch (tf2::TransformException &ex) {
-            RCLCPP_WARN(this->get_logger(), "Could not get transform: %s", ex.what());
-            return;
-        }
 
         // We now have a good point cloud
 
