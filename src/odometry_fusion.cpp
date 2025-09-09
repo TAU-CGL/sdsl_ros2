@@ -104,8 +104,14 @@ private:
 
             double newScore = 1.0 / (dist + eps_);
             totalScore += newScore;
-
-            newScore *= pow(prevScore, lambda_);
+            
+            // Exponent in lambda if the transformation is non-zerolike
+            // Based on distance between pt before and after transformation
+            double odomDist = std::sqrt(CGAL::squared_distance(pointCloud.points[i], pt));
+            if (odomDist > 0.01)
+                newScore *= pow(prevScore, lambda_);
+            else
+                newScore = prevScore;
             pointCloud.scores.push_back(newScore);
         }
         // Normalize scores

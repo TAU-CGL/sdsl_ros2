@@ -121,15 +121,18 @@ private:
 
         // sdsl::Predicate_Static<sdsl::R3xS1<FT>, sdsl::R3xS2<FT>, FT, sdsl::Env_R3_PCD<Kernel>> predicate;
         std::vector<std::vector<int>> schedule;
-        for (int i = 0; i < 10; i++) {
+        schedule.push_back(std::vector<int>()); schedule[0].push_back(4); schedule[0].push_back(8); schedule[0].push_back(1); schedule[0].push_back(3);
+        schedule.push_back(std::vector<int>()); schedule[1].push_back(3); schedule[1].push_back(3); schedule[1].push_back(1); schedule[1].push_back(2);
+        schedule.push_back(std::vector<int>()); schedule[2].push_back(3); schedule[2].push_back(3); schedule[2].push_back(1); schedule[2].push_back(2);
+        for (int i = 3; i < 10; i++) {
             schedule.push_back(std::vector<int>());
             schedule[i].push_back(2); schedule[i].push_back(2); schedule[i].push_back(1); schedule[i].push_back(2);
         }
 
         sdsl::ScheduledSplitter_R3xS1<FT> splitter = sdsl::ScheduledSplitter_R3xS1<FT>(schedule);
         sdsl::Predicate_Dynamic_Naive_Fast<sdsl::R3xS1<FT>, sdsl::R3xS2<FT>, FT, sdsl::Env_R3_PCD<Kernel>> predicate(ds.size(), ds.size()-4);
-        FT errorBound = 0.05; // TODO: Move to parameter
-        int recursionDepth = 8;    // TODO: Move to parameter
+        FT errorBound = 0.025; // TODO: Move to parameter
+        int recursionDepth = 6;    // TODO: Move to parameter
         
         // Localize and report algorithm time
         auto start = std::chrono::steady_clock::now();

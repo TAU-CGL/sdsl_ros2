@@ -107,9 +107,9 @@ if __name__ == "__main__":
     measurements = ds.tolist()
 
     schedule = [
-        [2, 4, 1, 2],
-        [3, 3, 1, 3], 
-        [3, 3, 1, 3], 
+        [4, 8, 1, 4],
+        [2, 2, 1, 2],
+        [2, 2, 1, 2], 
         [2, 2, 1, 2],
         [2, 2, 1, 2],
         [2, 2, 1, 2],
@@ -119,7 +119,7 @@ if __name__ == "__main__":
     ]
 
     start = time.time()
-    localization = sdsl.localize_R3_pcd_dynamic_scheduled(env, odometry, measurements, 0.05, 7, 13, schedule)
+    localization = sdsl.localize_R3_pcd_dynamic_scheduled(env, odometry, measurements, 0.05, 6, 13, schedule)
     end = time.time()
     print(f"Took {end-start:.3f}[sec]")
 
