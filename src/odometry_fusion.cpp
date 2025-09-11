@@ -64,8 +64,8 @@ private:
     rclcpp::Subscription<sdsl_ros2::msg::PointCloudWithTransform>::SharedPtr sdslRawSubscriber_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr sdslWithScoresPublisher_;
     
-    double lambda_ = 0.99; // Forgetting rate
-    double eps_ = 0.0001; // Small constant to avoid zero division
+    double gamma_ = 0.999; // Forgetting rate
+    double epsilon_ = 0.1; // Error standard deviation
     PointCloud prevPointCloud_;
 
     void sdslRawCallback(const sdsl_ros2::msg::PointCloudWithTransform::SharedPtr msg) {
@@ -94,24 +94,41 @@ private:
         double totalScore = 0.0;
         Eigen::Matrix3d T = computeTransformDifference(
             prevPointCloud_.transform, pointCloud.transform);
+        
+        // Compute motion magnitude for stability-based scoring
+        double motion_magnitude = T.block<3,1>(0,2).norm(); // Translation magnitude
+        double motion_threshold = 0.1; // Threshold for "small motion"
+
+        // Get previous best point
+        double bestPrevScore = -1.0;
+        Kernel::Point_3 x_hat; // $\hat{x}_{n-1}$
+        for (size_t i = 0; i < prevPointCloud_.scores.size(); ++i) {
+            if (prevPointCloud_.scores[i] > bestPrevScore)
+                bestPrevScore = prevPointCloud_.scores[i];
+                x_hat = prevPointCloud_.points[i];
+        }
+        
         for (size_t i = 0; i < pointCloud.points.size(); ++i) {
             Kernel::Point_3 pt = pointCloud.points[i];
-            pt = transformPoint(T, pt);
-            int nnIndex = prevPointCloud_.nearestNeighborIndex(pt);
+            Kernel::Point_3 Uinv_pt = transformPoint(T, pt);
+
+            int nnIndex = prevPointCloud_.nearestNeighborIndex(Uinv_pt); // Find NN(Uinv_pt)
             double prevScore = (nnIndex >= 0) ? prevPointCloud_.scores[nnIndex] : 0.0;
             Kernel::Point_3 nnPt = (nnIndex >= 0) ? prevPointCloud_.points[nnIndex] : Kernel::Point_3(0,0,0);
-            double dist = std::sqrt(CGAL::squared_distance(pt, nnPt));
 
-            double newScore = 1.0 / (dist + eps_);
+            double delta1_2 = CGAL::squared_distance(Uinv_pt, nnPt);
+            double delta2_2 = CGAL::squared_distance(Uinv_pt, x_hat);
+
+            double s1 = std::exp(-delta1_2 / (2 * epsilon_ * epsilon_)) / (std::sqrt(2 * M_PI) * epsilon_);
+            double s2 = std::exp(-delta2_2 / (2 * epsilon_ * epsilon_)) / (std::sqrt(2 * M_PI) * epsilon_);
+            double s3 = prevScore;
+            
+            // Improved scoring with temporal smoothing and motion-based decay
+            double alpha = 0.7;  // Temporal smoothing factor
+            double beta = std::exp(-motion_magnitude / motion_threshold);  // Motion-based decay
+            double newScore = s1 + alpha * s3 + gamma_ * beta * s2;
             totalScore += newScore;
             
-            // Exponent in lambda if the transformation is non-zerolike
-            // Based on distance between pt before and after transformation
-            double odomDist = std::sqrt(CGAL::squared_distance(pointCloud.points[i], pt));
-            if (odomDist > 0.01)
-                newScore *= pow(prevScore, lambda_);
-            else
-                newScore = prevScore;
             pointCloud.scores.push_back(newScore);
         }
         // Normalize scores
