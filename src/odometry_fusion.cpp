@@ -65,8 +65,14 @@ private:
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr sdslWithScoresPublisher_;
     
     double gamma_ = 0.999; // Forgetting rate
-    double epsilon_ = 0.2; // Error standard deviation
+    double epsilon_ = 0.1; // Error standard deviation
     PointCloud prevPointCloud_;
+
+    static double logaddexp(double a, double b) {
+        if (a == -std::numeric_limits<double>::infinity()) return b;
+        if (b == -std::numeric_limits<double>::infinity()) return a;
+        return std::max(a, b) + std::log1p(std::exp(-std::abs(a - b)));
+    }
 
     void sdslRawCallback(const sdsl_ros2::msg::PointCloudWithTransform::SharedPtr msg) {
         RCLCPP_INFO(this->get_logger(), "Received SDSL raw point cloud with %d points", msg->point_cloud.width);
@@ -82,7 +88,9 @@ private:
 
         if (prevPointCloud_.isNull || prevPointCloud_.points.empty()) {
             // First point cloud, initialize scores to 1.0
-            pointCloud.scores = std::vector<double>(pointCloud.points.size(), 1.0 / pointCloud.points.size());
+            // double initialScore = -std::log(pointCloud.points.size());
+            double initialScore = 1.0 / pointCloud.points.size();
+            pointCloud.scores = std::vector<double>(pointCloud.points.size(), initialScore);
             publishPointCloudWithScores(pointCloud);
             prevPointCloud_ = pointCloud;
             RCLCPP_INFO(this->get_logger(), "Initialized first point cloud with uniform scores");
@@ -92,27 +100,34 @@ private:
         RCLCPP_INFO(this->get_logger(), "Fusing with previous point cloud with %d points", prevPointCloud_.points.size());
 
         double totalScore = 0.0;
+        // double totalScore = -std::numeric_limits<double>::infinity();
         Eigen::Matrix3d T = computeTransformDifference(
             prevPointCloud_.transform, pointCloud.transform);
 
-        // \int P[X_t|X_{t-1}] * Bel(X_{t-1}) dX_{t-1} 
+        // (Using log-scores) \int P[X_t|X_{t-1}] * Bel(X_{t-1}) dX_{t-1} 
         for (size_t i = 0; i < pointCloud.points.size(); ++i) {
             Kernel::Point_3 pt = pointCloud.points[i];
             Kernel::Point_3 Uinv_pt = transformPoint(T, pt);
 
             double score = 0.0;
+            // double score = -std::numeric_limits<double>::infinity();
             for (size_t j = 0; j < prevPointCloud_.points.size(); ++j) {
                 double dist = CGAL::squared_distance(Uinv_pt, prevPointCloud_.points[j]);
                 double pxt_xtminusone = std::exp(-dist / (2 * epsilon_ * epsilon_)) / (std::sqrt(2 * M_PI) * epsilon_);
-                score += std::pow(prevPointCloud_.scores[j], gamma_) * pxt_xtminusone + (1 - gamma_);
+                score += prevPointCloud_.scores[j] * pxt_xtminusone;
+                // double log_pxt_xtminusone = -dist / (2 * epsilon_ * epsilon_) - 1.5 * std::log(2 * M_PI * epsilon_ * epsilon_);
+                // double log_prior = prevPointCloud_.scores[j] + std::log(gamma_);
+                // score = logaddexp(score, log_prior + log_pxt_xtminusone);
             }
-            totalScore += score;
 
+            totalScore += score;
+            // totalScore = logaddexp(totalScore, score);
             pointCloud.scores.push_back(score);
         }
         // Normalize scores
         for (double& score : pointCloud.scores) {
             score /= totalScore;
+            // score -= totalScore;
         }
 
         publishPointCloudWithScores(pointCloud);

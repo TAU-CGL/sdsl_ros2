@@ -129,7 +129,7 @@ private:
 
         sdsl::ScheduledSplitter_R3xS1<FT> splitter = sdsl::ScheduledSplitter_R3xS1<FT>(schedule);
         sdsl::Predicate_Dynamic_Naive_Fast<sdsl::R3xS1<FT>, sdsl::R3xS2<FT>, FT, sdsl::Env_R3_PCD<Kernel>> predicate(ds.size(), ds.size()-6);
-        FT errorBound = 0.1; // TODO: Move to parameter
+        FT errorBound = 0.05; // TODO: Move to parameter
         int recursionDepth = 7;    // TODO: Move to parameter
         
         // Localize and report algorithm time
