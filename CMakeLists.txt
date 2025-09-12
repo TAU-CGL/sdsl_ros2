@@ -88,6 +88,13 @@ install(TARGETS
   DESTINATION lib/${PROJECT_NAME}
 )
 
+add_executable(localization_publisher_node src/localization_publisher.cpp)
+ament_target_dependencies(localization_publisher_node rclcpp sensor_msgs geometry_msgs tf2 tf2_ros tf2_geometry_msgs)
+install(TARGETS
+  localization_publisher_node
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 install(DIRECTORY
   config
   launch
