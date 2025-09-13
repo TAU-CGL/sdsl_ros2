@@ -255,16 +255,26 @@ private:
 
     Kernel::Point_3 transformPoint(const Eigen::Matrix3d& T, const Kernel::Point_3& point) {
         // Extract transformation components from SE(2) matrix
-        double cos_theta = T(0, 0);
-        double sin_theta = T(1, 0);
-        double tx = T(0, 2);
-        double ty = T(1, 2);
+        // double cos_theta = T(0, 0);
+        // double sin_theta = T(1, 0);
+        // double tx = T(0, 2);
+        // double ty = T(1, 2);
         
-        // Apply transformation: [x', y'] = R * [x, y] + t
-        double x_new = cos_theta * point.x() - sin_theta * point.y() + tx;
-        double y_new = sin_theta * point.x() + cos_theta * point.y() + ty;
+        // // Apply transformation: [x', y'] = R * [x, y] + t
+        // double x_new = cos_theta * point.x() - sin_theta * point.y() + tx;
+        // double y_new = sin_theta * point.x() + cos_theta * point.y() + ty;
         
-        return Kernel::Point_3(x_new, y_new, 0.0);
+        // return Kernel::Point_3(x_new, y_new, 0.0);
+
+        double dx = T(0, 2);
+        double dy = T(1, 2);
+        Eigen::Vector3d fwd(std::cos(point.z()), std::sin(point.z()), 0.0);
+        fwd = T * fwd; // Rotate the robot with its own theata + deltaTheta from T
+
+        double x_new = point.x() + dx * fwd.x();
+        double y_new = point.y() + dy * fwd.y();
+        double z_new = point.z() + std::atan2(fwd.y(), fwd.x()); // New theta
+        return Kernel::Point_3(x_new, y_new, z_new);
     }
 
 };
