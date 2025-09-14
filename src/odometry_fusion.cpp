@@ -65,7 +65,7 @@ private:
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr sdslWithScoresPublisher_;
     
     double gamma_ = 0.999; // Forgetting rate
-    double epsilon_ = 0.1; // Error standard deviation
+    double epsilon_ = 0.2; // Error standard deviation
     PointCloud prevPointCloud_;
 
     static double logaddexp(double a, double b) {
@@ -103,16 +103,38 @@ private:
         // double totalScore = -std::numeric_limits<double>::infinity();
         Eigen::Matrix3d T = computeTransformDifference(
             prevPointCloud_.transform, pointCloud.transform);
+        // Eigen::Matrix3d T = computeTransformDifference(
+        //     pointCloud.transform, prevPointCloud_.transform);
+
+        // Print prevPointCloud_.transform, pointCloud.transform and T (x, y, yaw)
+        // RCLCPP_INFO(this->get_logger(), "Prev transform: (%.3f, %.3f, %.3f)", 
+        //     prevPointCloud_.transform.transform.translation.x,
+        //     prevPointCloud_.transform.transform.translation.y,
+        //     quaternionToYaw(prevPointCloud_.transform.transform.rotation));
+        // RCLCPP_INFO(this->get_logger(), "Curr transform: (%.3f, %.3f, %.3f)", 
+        //     pointCloud.transform.transform.translation.x,
+        //     pointCloud.transform.transform.translation.y,
+        //     quaternionToYaw(pointCloud.transform.transform.rotation));
+        // RCLCPP_INFO(this->get_logger(), "Computed T: (%.3f, %.3f, %.3f)", 
+        //     T(0, 2), T(1, 2), std::atan2(T(1,0), T(0,0)));
 
         // (Using log-scores) \int P[X_t|X_{t-1}] * Bel(X_{t-1}) dX_{t-1} 
         for (size_t i = 0; i < pointCloud.points.size(); ++i) {
             Kernel::Point_3 pt = pointCloud.points[i];
             Kernel::Point_3 Uinv_pt = transformPoint(T, pt);
 
+            // Print pt and Uinv_pt
+            // RCLCPP_INFO(this->get_logger(), "Point %zu: (%.3f, %.3f, %.3f) -> (%.3f, %.3f, %.3f)", 
+            //     i, pt.x(), pt.y(), pt.z(), Uinv_pt.x(), Uinv_pt.y(), Uinv_pt.z());
+
             double score = 0.0;
             // double score = -std::numeric_limits<double>::infinity();
             for (size_t j = 0; j < prevPointCloud_.points.size(); ++j) {
-                double dist = CGAL::squared_distance(Uinv_pt, prevPointCloud_.points[j]);
+                // double dist = CGAL::squared_distance(Uinv_pt, prevPointCloud_.points[j]);
+                double dist = 
+                    (Uinv_pt.x() - prevPointCloud_.points[j].x()) * (Uinv_pt.x() - prevPointCloud_.points[j].x()) +
+                    (Uinv_pt.y() - prevPointCloud_.points[j].y()) * (Uinv_pt.y() - prevPointCloud_.points[j].y()) +
+                    0 * 0.33 * 0.33 * (Uinv_pt.z() - prevPointCloud_.points[j].z()) * (Uinv_pt.z() - prevPointCloud_.points[j].z());
                 double pxt_xtminusone = std::exp(-dist / (2 * epsilon_ * epsilon_)) / (std::sqrt(2 * M_PI) * epsilon_);
                 score += prevPointCloud_.scores[j] * pxt_xtminusone;
                 // double log_pxt_xtminusone = -dist / (2 * epsilon_ * epsilon_) - 1.5 * std::log(2 * M_PI * epsilon_ * epsilon_);
@@ -199,8 +221,9 @@ private:
     }
 
     double quaternionToYaw(const geometry_msgs::msg::Quaternion& q) {
-        return std::atan2(2.0 * (q.w * q.z + q.x * q.y), 
-                        1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+        // return std::atan2(2.0 * (q.w * q.z + q.x * q.y), 
+        //                 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+        return std::atan2(q.z, q.w) * 2.0;
     }
 
     Eigen::Matrix3d createSE2Matrix(double x, double y, double yaw) {
@@ -216,15 +239,7 @@ private:
     }
 
     Eigen::Matrix3d inverseSE2Matrix(double x, double y, double yaw) {
-        Eigen::Matrix3d T_inv;
-        double cos_yaw = std::cos(yaw);
-        double sin_yaw = std::sin(yaw);
-        
-        T_inv << cos_yaw,  sin_yaw, -x * cos_yaw - y * sin_yaw,
-                -sin_yaw,  cos_yaw,  x * sin_yaw - y * cos_yaw,
-                0,        0,        1;
-        
-        return T_inv;
+        return createSE2Matrix(x, y, yaw).inverse();
     }
 
     Eigen::Matrix3d computeTransformDifference(
@@ -241,40 +256,38 @@ private:
         double y_curr = T_curr.transform.translation.y;
         double yaw_curr = quaternionToYaw(T_curr.transform.rotation);
         
+        return createSE2Matrix(-x_prev + x_curr, -y_prev + y_curr, -yaw_prev + yaw_curr);
+
         // Create T_prev matrix
-        Eigen::Matrix3d T_prev_mat = createSE2Matrix(x_prev, y_prev, yaw_prev);
+        // Eigen::Matrix3d T_prev_mat = inverseSE2Matrix(x_prev, y_prev, yaw_prev);
         
-        // Create inverse of T_curr matrix
-        Eigen::Matrix3d T_curr_inv = inverseSE2Matrix(x_curr, y_curr, yaw_curr);
+        // // Create inverse of T_curr matrix
+        // Eigen::Matrix3d T_curr_inv = createSE2Matrix(x_curr, y_curr, yaw_curr);
         
-        // Compute T = T_prev * inv(T_curr)
-        Eigen::Matrix3d T = T_prev_mat * T_curr_inv;
+        // // Compute T = T_prev * inv(T_curr)
+        // Eigen::Matrix3d T = T_prev_mat * T_curr_inv;
         
-        return T;
+        // return T.inverse();
     }
 
     Kernel::Point_3 transformPoint(const Eigen::Matrix3d& T, const Kernel::Point_3& point) {
-        // Extract transformation components from SE(2) matrix
-        // double cos_theta = T(0, 0);
-        // double sin_theta = T(1, 0);
-        // double tx = T(0, 2);
-        // double ty = T(1, 2);
-        
-        // // Apply transformation: [x', y'] = R * [x, y] + t
-        // double x_new = cos_theta * point.x() - sin_theta * point.y() + tx;
-        // double y_new = sin_theta * point.x() + cos_theta * point.y() + ty;
-        
-        // return Kernel::Point_3(x_new, y_new, 0.0);
+        // Breakdown the point
+        double x = point.x();
+        double y = point.y();
+        double theta = point.z();
 
-        double dx = T(0, 2);
+        double dx = T(0, 2); // In robot coords
         double dy = T(1, 2);
-        Eigen::Vector3d fwd(std::cos(point.z()), std::sin(point.z()), 0.0);
-        fwd = T * fwd; // Rotate the robot with its own theata + deltaTheta from T
+        double dtheta = std::atan2(T(1,0), T(0,0));
 
-        double x_new = point.x() + dx * fwd.x();
-        double y_new = point.y() + dy * fwd.y();
-        double z_new = point.z() + std::atan2(fwd.y(), fwd.x()); // New theta
-        return Kernel::Point_3(x_new, y_new, z_new);
+        // Apply the transformation
+        // double x_new = x + (std::cos(theta) * dx - std::sin(theta) * dy);
+        // double y_new = y + (std::sin(theta) * dx + std::cos(theta) * dy);
+        double x_new = x + (std::cos(theta) * dx);
+        double y_new = y + (std::sin(theta) * dy);
+        double theta_new = theta + dtheta;
+
+        return Kernel::Point_3(x_new, y_new, theta_new);
     }
 
 };

@@ -128,7 +128,7 @@ private:
         }
 
         sdsl::ScheduledSplitter_R3xS1<FT> splitter = sdsl::ScheduledSplitter_R3xS1<FT>(schedule);
-        sdsl::Predicate_Dynamic_Naive_Fast<sdsl::R3xS1<FT>, sdsl::R3xS2<FT>, FT, sdsl::Env_R3_PCD<Kernel>> predicate(ds.size(), ds.size()-6);
+        sdsl::Predicate_Dynamic_Naive_Fast<sdsl::R3xS1<FT>, sdsl::R3xS2<FT>, FT, sdsl::Env_R3_PCD<Kernel>> predicate(ds.size(), ds.size()-4);
         FT errorBound = 0.05; // TODO: Move to parameter
         int recursionDepth = 7;    // TODO: Move to parameter
         
@@ -141,6 +141,36 @@ private:
         std::chrono::duration<double> elapsed = end - start;
         RCLCPP_INFO(this->get_logger(), "Localization result: %d", result.size());
         RCLCPP_INFO(this->get_logger(), "Localization took: %.2f seconds", elapsed.count());
+
+
+        // Cleanup result
+        // std::vector<sdsl::Voxel<sdsl::R3xS1<FT>>> cleaned;
+        // for (auto v : result) {
+        //     sdsl::R3xS1<FT> mid = sdsl::middle(v);
+        //     int numConsistent = 0;
+        //     for (size_t i = 0; i < gs.size(); ++i) {
+        //         FT distance = environment_.measureDistance(mid * gs[i]);
+        //         if (std::abs(distance - ds[i]) <= errorBound * 3) 
+        //             numConsistent++;
+        //     }
+        //     // TODO: Check with k' heuristic
+        //     int k_prime = ds.size() - 6;
+            
+        //     // Print the distances and expected distances for the first voxel only
+        //     {
+        //         for (size_t i = 0; i < gs.size(); ++i) {
+        //             FT distance = environment_.measureDistance(mid * gs[i]);
+        //             RCLCPP_INFO(this->get_logger(), "Measurement %zu: expected %.3f, got %.3f", i, ds[i], distance);
+        //         }
+        //     }
+
+        //     if (numConsistent >= k_prime) {
+        //         cleaned.push_back(v);
+        //     }
+        // }
+        // result = cleaned;
+        // RCLCPP_INFO(this->get_logger(), "After cleaning: %d", result.size());
+
 
         // Create a 2D pointcloud that is the midpoint of each voxel
         sensor_msgs::msg::PointCloud2 pointcloud_msg;
@@ -180,10 +210,10 @@ private:
             // Get midpoint of voxel
             auto midpoint = sdsl::middle(result[i]);
             
-            // Extract 3D position (x, y, z)
+            // Extract 3D position (x, y, r) (z is actually rotation)
             data_ptr[i * 3 + 0] = static_cast<float>(midpoint.getXDouble());
             data_ptr[i * 3 + 1] = static_cast<float>(midpoint.getYDouble());
-            data_ptr[i * 3 + 2] = static_cast<float>(midpoint.getZDouble());
+            data_ptr[i * 3 + 2] = static_cast<float>(midpoint.getRDouble());
         }
         
         // Create and publish the combined message
