@@ -34,6 +34,8 @@ def generate_launch_description():
 
     amcl_params = {
         'use_sim_time': LaunchConfiguration('use_sim_time'),
+        'map_topic': 'map',
+        'scan_topic': 'sds',
         'alpha1': 0.2,
         'alpha2': 0.2,
         'alpha3': 0.2,
@@ -70,6 +72,7 @@ def generate_launch_description():
         'z_max': 0.05,
         'z_rand': 0.5,
         'z_short': 0.05,
+        'allow_parameter_qos_overrides': True,
         'initial_pose': {
             'x': LaunchConfiguration('initial_pose_x'),
             'y': LaunchConfiguration('initial_pose_y'),
@@ -82,9 +85,12 @@ def generate_launch_description():
         package='nav2_amcl',
         executable='amcl',
         name='amcl',
-        parameters=[amcl_params],
-        remappings=[
-            ('scan', '/sds')
+        parameters=[
+            amcl_params,
+            {
+                'qos_overrides./map.subscriber.durability': 'volatile',
+                'qos_overrides./map.subscriber.reliability': 'reliable'
+            }
         ],
         output='screen'
     )
