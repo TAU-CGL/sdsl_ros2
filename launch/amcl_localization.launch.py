@@ -85,13 +85,7 @@ def generate_launch_description():
         package='nav2_amcl',
         executable='amcl',
         name='amcl',
-        parameters=[
-            amcl_params,
-            {
-                'qos_overrides./map.subscriber.durability': 'volatile',
-                'qos_overrides./map.subscriber.reliability': 'reliable'
-            }
-        ],
+        parameters=[amcl_params],
         output='screen'
     )
 

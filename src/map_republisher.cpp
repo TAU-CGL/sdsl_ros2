@@ -14,7 +14,7 @@ public:
         mapSubscription_ = this->create_subscription<nav_msgs::msg::OccupancyGrid>(
             "map_original", qos, std::bind(&MapRepublisher::mapCallback, this, std::placeholders::_1));
         
-        mapPublisher_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>("map", 10);
+        mapPublisher_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>("map", qos);
         
         timer_ = this->create_wall_timer(
             1000ms, std::bind(&MapRepublisher::publishMap, this));
