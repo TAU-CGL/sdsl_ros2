@@ -1,6 +1,6 @@
 import os
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
@@ -59,7 +59,7 @@ def generate_launch_description():
         'recovery_alpha_fast': 0.0,
         'recovery_alpha_slow': 0.0,
         'resample_interval': 1,
-        'robot_model_type': 'differential',
+        'robot_model_type': 'nav2_amcl::DifferentialMotionModel',
         'save_pose_rate': 0.5,
         'sigma_hit': 0.2,
         'tf_broadcast': True,
@@ -89,10 +89,28 @@ def generate_launch_description():
         output='screen'
     )
 
+    configure_amcl = ExecuteProcess(
+        cmd=['ros2', 'lifecycle', 'set', '/amcl', 'configure'],
+        output='screen'
+    )
+
+    activate_amcl = ExecuteProcess(
+        cmd=['ros2', 'lifecycle', 'set', '/amcl', 'activate'],
+        output='screen'
+    )
+
     return LaunchDescription([
         use_sim_time_arg,
         initial_pose_x_arg,
         initial_pose_y_arg,
         initial_pose_yaw_arg,
-        amcl_node
+        amcl_node,
+        TimerAction(
+            period=2.0,
+            actions=[configure_amcl]
+        ),
+        TimerAction(
+            period=4.0,
+            actions=[activate_amcl]
+        )
     ])
