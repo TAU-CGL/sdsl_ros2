@@ -142,36 +142,6 @@ private:
         RCLCPP_INFO(this->get_logger(), "Localization result: %d", result.size());
         RCLCPP_INFO(this->get_logger(), "Localization took: %.2f seconds", elapsed.count());
 
-
-        // Cleanup result
-        // std::vector<sdsl::Voxel<sdsl::R3xS1<FT>>> cleaned;
-        // for (auto v : result) {
-        //     sdsl::R3xS1<FT> mid = sdsl::middle(v);
-        //     int numConsistent = 0;
-        //     for (size_t i = 0; i < gs.size(); ++i) {
-        //         FT distance = environment_.measureDistance(mid * gs[i]);
-        //         if (std::abs(distance - ds[i]) <= errorBound * 3) 
-        //             numConsistent++;
-        //     }
-        //     // TODO: Check with k' heuristic
-        //     int k_prime = ds.size() - 6;
-            
-        //     // Print the distances and expected distances for the first voxel only
-        //     {
-        //         for (size_t i = 0; i < gs.size(); ++i) {
-        //             FT distance = environment_.measureDistance(mid * gs[i]);
-        //             RCLCPP_INFO(this->get_logger(), "Measurement %zu: expected %.3f, got %.3f", i, ds[i], distance);
-        //         }
-        //     }
-
-        //     if (numConsistent >= k_prime) {
-        //         cleaned.push_back(v);
-        //     }
-        // }
-        // result = cleaned;
-        // RCLCPP_INFO(this->get_logger(), "After cleaning: %d", result.size());
-
-
         // Create a 2D pointcloud that is the midpoint of each voxel
         sensor_msgs::msg::PointCloud2 pointcloud_msg;
         // pointcloud_msg.header = msg->header; // Use same timestamp and frame
