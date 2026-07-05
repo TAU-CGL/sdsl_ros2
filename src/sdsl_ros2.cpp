@@ -37,7 +37,7 @@ public:
         using std::placeholders::_1;
         mapSubscription_ = this->create_subscription<OccupancyGrid>(
             "map", 10, std::bind(&SDSL_ROS2::mapCallback, this, _1)); 
-        sdsSubscription_ = this->create_subscription<LaserScan<(
+        sdsSubscription_ = this->create_subscription<LaserScan>(
             "sds", 10, std::bind(&SDSL_ROS2::sdsCallback, this, _1));
         pcWithTransformPublisher_ = this->create_publisher<PointCloudWithTransform>("sdsl_raw", 10);
 
