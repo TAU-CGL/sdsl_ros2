@@ -9,6 +9,7 @@
 #include <sdsl/sdsl.hpp>
 #include <sdsl/environments/env_pgm.hpp>
 #include <sdsl/predicates/pred_forward_2d.hpp>
+#include <CGAL/Simple_caretsian.h>
 using Kernel = CGAL::Simple_cartesian<double>;
 using FT = Kernel::FT;
 
