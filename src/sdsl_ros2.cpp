@@ -96,9 +96,9 @@ private:
         getOdometriesAndMeasurements(msg, odometries, measurements);
 
         std::vector<sdsl::Voxel<3>> localization = getLocalization(odometries, measurements);
-        std::vector<double> belief = getLocalizationBeliefScores(localization);
+        //std::vector<double> belief = getLocalizationBeliefScores(localization);
 
-        publishLocalizationPointCloud(localization, belief);
+        //publishLocalizationPointCloud(localization, belief);
     }
 
     void loadMapFromOccupancyGridMessage(const OccupancyGrid::SharedPtr msg) {
@@ -169,8 +169,9 @@ private:
         auto start = std::chrono::steady_clock::now();
         auto result = localize_omp_forkjoin(environment_->boundingBox(), predicate, recursion_depth_, timeout_, true);
         auto end = std::chrono::steady_clock::now();
+        std::chrono::duration<double> elapsed = end - start;
         RCLCPP_INFO(this->get_logger(), "Localization result: %d", result.size());
-        RCLCPP_INFO(this->get_logger(), "Localization took: %.3f seconds", (end - start).count());
+        RCLCPP_INFO(this->get_logger(), "Localization took: %.3f seconds", elapsed.count());
     }
 
     std::vector<FT> getLocalizationBeliefScores(std::vector<sdsl::Voxel<3>> localization) {
