@@ -96,6 +96,7 @@ private:
         getOdometriesAndMeasurements(msg, odometries, measurements);
 
         std::vector<sdsl::Voxel<3>> localization = getLocalization(odometries, measurements);
+        RCLCPP_INFO(this->get_logger(), "Done with localization.");
         std::vector<double> belief = getLocalizationBeliefScores(localization);
 
         publishLocalizationPointCloud(localization, belief);
