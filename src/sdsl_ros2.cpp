@@ -96,7 +96,6 @@ private:
         getOdometriesAndMeasurements(msg, odometries, measurements);
 
         std::vector<sdsl::Voxel<3>> localization = getLocalization(odometries, measurements);
-        RCLCPP_INFO(this->get_logger(), "Done with localization.");
         std::vector<double> belief = getLocalizationBeliefScores(localization);
 
         publishLocalizationPointCloud(localization, belief);
@@ -167,10 +166,16 @@ private:
 
     std::vector<sdsl::Voxel<3>> getLocalization(std::vector<sdsl::Configuration<3>>& odometries, std::vector<FT>& measurements) {
         sdsl::Predicate_Fwd2D<3,FT> predicate(environment_, odometries, measurements, kk_prime_ratio_, error_bound_);
-        return localize_omp_forkjoin(environment_->boundingBox(), predicate, recursion_depth_, timeout_, true);
+        auto start = std::chrono:steady_clock::now();
+        auto result = localize_omp_forkjoin(environment_->boundingBox(), predicate, recursion_depth_, timeout_, true);
+        auto end = std::chrono::steady_clock::now();
+        RCLCPP_INFO(this->get_logger(), "Localization result: %d", result.size());
+        RCLCPP_INFO(this->get_logger(), "Localization took: %.3f seconds", (end - start).count());
     }
 
     std::vector<FT> getLocalizationBeliefScores(std::vector<sdsl::Voxel<3>> localization) {
+        std::vector<FT> belief;
+        return belief;
     }
 
     void publishLocalizationPointCloud(std::vector<sdsl::Voxel<3>> localization, std::vector<FT> belief) {
