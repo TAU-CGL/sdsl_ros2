@@ -110,7 +110,7 @@ private:
 
     uint8_t rescaleOccupancyGridValueToPGM(int8_t val) {
         if (val < 0) return uint8_t(205); // Return some mid-gray for unknown
-        return uint8_t(255.0 * (1.0 - p / 100.0));
+        return uint8_t(255.0 * (1.0 - val / 100.0));
     }
 
 };
