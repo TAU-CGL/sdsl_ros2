@@ -30,6 +30,7 @@ using namespace std::chrono_literals;
 using OccupancyGrid = nav_msgs::msg::OccupancyGrid;
 using LaserScan = sensor_msgs::msg::LaserScan;
 using PointCloudWithTransform = sdsl_ros2::msg::PointCloudWithTransform;
+using TransformStamped = geometry_msgs::msg::TransformStamped;
 
 class SDSL_ROS2 : public rclcpp::Node {
 public:
@@ -45,6 +46,11 @@ public:
         tfBuffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
         tfListener_ = std::make_shared<tf2_ros::TransformListener>(*tfBuffer_);
 
+        // Declare parameters
+        kk_prime_ratio_ = this->declare_parameter<double>("kk_prime_ratio", 0.8);
+        error_bound_ = this->declare_parameter<double>("error_bound", 0.005);
+        recursion_depth_ = this->declare_parameter<int>("recursion_depth", 4);
+        
         RCLCPP_INFO(this->get_logger(), "SDSL_ROS2 node has been started.");
 	}
 
@@ -55,9 +61,14 @@ private:
 
     std::unique_ptr<tf2_ros::Buffer> tfBuffer_;
     std::shared_ptr<tf2_ros::TransformListener> tfListener_;
+    TransformStamped transform_, previousTransform_;
 
-    sdsl::Env_PGM<3> environment_;
+    std::shared_ptr<sdsl::Env_PGM<3>> environment_;
     bool environmentInitialized_;
+
+    double kk_prime_ratio_;
+    double error_bound_;
+    int recursion_depth_;
 
 
     // --------------------------------------------------------------------------
@@ -68,7 +79,23 @@ private:
     }
 
     void sdsCallback(const LaserScan::SharedPtr msg) {
+        RCLCPP_INFO(this->get_logger(), "Received laser scan with %zu ranges", msg->ranges.size());
+        if (!environmentInitialized_) return;
+        try {
+            captureRobotTransform();
+        } catch (tf2::TransformException &ex) {
+            RCLCPP_WARN(this->get_logger(), "Could not get transform: %s", ex.what());
+            return;
+        } // Do not run localization until we can capture the robot's actual odometry
 
+        std::vector<sdsl::Configuration<3>> odometries;
+        std::vector<FT> measurements;
+        getOdometriesAndMeasurements(msg, odometries, measurements);
+
+        std::vector<sdsl::Voxel<3>> localization = getLocalization(odometries, measurements);
+        std::vector<double> belief = getLocalizationBeliefScores(localization);
+
+        publishLocalizationPointCloud(localization, belief);
     }
 
     void loadMapFromOccupancyGridMessage(const OccupancyGrid::SharedPtr msg) {
@@ -78,7 +105,8 @@ private:
         double origin_x = msg->info.origin.position.x;
         double origin_y = msg->info.origin.position.y;
         std::vector<uint8_t> pixels = convertOccupancyGridToPGM(msg);
-        environment_.load(pixels.data(), width, height, resolution, origin_x, origin_y);
+        environment_ = std::make_shared<sdsl::Env_PGM<3>>();
+        environment_->load(pixels.data(), width, height, resolution, origin_x, origin_y);
         environmentInitialized_ = true;
     }
 
@@ -114,6 +142,35 @@ private:
         return uint8_t(255.0 * (1.0 - val / 100.0));
     }
 
+    void captureRobotTransform() {
+        TransformStamped tmpTransform = tfBuffer_->lookupTransform("odom", "base_footprint", tf2::TimePointZero); // May raise exception
+        previousTransform_ = transform_;
+        transform_ = tmpTransform;
+    }
+
+     void getOdometriesAndMeasurements(const LaserScan::SharedPtr msg,std::vector<Configuration<3>>& odometries,std::vector<FT>& measurements) {
+        for (size_t i = 0; i < msg->ranges.size(); ++i) {
+            double range = msg->ranges[i];
+            if (range < msg->range_min || range > msg->range_max || std::isnan(range)) {
+                continue; // Ignore invalid ranges
+            }
+            double angle = msg->angle_min + i * msg->angle_increment;
+            sdsl::Configuration<3> g(0.0, 0.0, angle);
+            odometries.push_back(g);
+            measurements.push_back(range);
+        }
+    }
+
+    std::vector<Voxel<3>> getLocalization(std::vector<Configuration<3>>& odometries, std::vector<FT>& measurements) {
+        sdsl::Predicate_Fwd2D predicate(environment_, odometries, measurements, kk_prime_ratio_, error_bound_);
+        return localize_omp_forkjoin(environment_->boundingBox(), predicate, recursion_depth_, timeout_, true);
+    }
+
+    std::vector<FT> getLocalizationBeliefScores(std::vector<Voxel<3>> localization) {
+    }
+
+    void publishLocalizationPointCloud(std::vector<Voxel<3>> localization, std::vector<FT> belief) {
+    }
 };
 
 int main(int argc, char** argv) {
