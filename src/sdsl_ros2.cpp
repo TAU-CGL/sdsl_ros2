@@ -166,7 +166,7 @@ private:
 
     std::vector<sdsl::Voxel<3>> getLocalization(std::vector<sdsl::Configuration<3>>& odometries, std::vector<FT>& measurements) {
         sdsl::Predicate_Fwd2D<3,FT> predicate(environment_, odometries, measurements, kk_prime_ratio_, error_bound_);
-        auto start = std::chrono:steady_clock::now();
+        auto start = std::chrono::steady_clock::now();
         auto result = localize_omp_forkjoin(environment_->boundingBox(), predicate, recursion_depth_, timeout_, true);
         auto end = std::chrono::steady_clock::now();
         RCLCPP_INFO(this->get_logger(), "Localization result: %d", result.size());
