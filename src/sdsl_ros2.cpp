@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <cassert>
 
 #define SDSL_CPP_ONLY
 #include <sdsl/sdsl.hpp>
