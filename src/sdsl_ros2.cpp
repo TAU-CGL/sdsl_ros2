@@ -95,7 +95,8 @@ private:
         std::vector<FT> measurements;
         getOdometriesAndMeasurements(msg, odometries, measurements);
 
-        //std::vector<sdsl::Voxel<3>> localization = getLocalization(odometries, measurements);
+        //std::vector<sdsl::Voxel<3>> localization = 
+        getLocalization(odometries, measurements);
         //std::vector<double> belief = getLocalizationBeliefScores(localization);
 
         //publishLocalizationPointCloud(localization, belief);
