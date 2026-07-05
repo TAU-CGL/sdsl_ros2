@@ -164,7 +164,7 @@ private:
     }
 
     std::vector<sdsl::Voxel<3>> getLocalization(std::vector<sdsl::Configuration<3>>& odometries, std::vector<FT>& measurements) {
-        sdsl::Predicate_Fwd2D predicate(environment_, odometries, measurements, kk_prime_ratio_, error_bound_);
+        sdsl::Predicate_Fwd2D<3,FT> predicate(environment_, odometries, measurements, kk_prime_ratio_, error_bound_);
         return localize_omp_forkjoin(environment_->boundingBox(), predicate, recursion_depth_, timeout_, true);
     }
 
