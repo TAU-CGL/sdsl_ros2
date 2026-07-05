@@ -150,7 +150,7 @@ private:
         transform_ = tmpTransform;
     }
 
-     void getOdometriesAndMeasurements(const LaserScan::SharedPtr msg,std::vector<Configuration<3>>& odometries,std::vector<FT>& measurements) {
+     void getOdometriesAndMeasurements(const LaserScan::SharedPtr msg,std::vector<sdsl::Configuration<3>>& odometries,std::vector<FT>& measurements) {
         for (size_t i = 0; i < msg->ranges.size(); ++i) {
             double range = msg->ranges[i];
             if (range < msg->range_min || range > msg->range_max || std::isnan(range)) {
@@ -163,15 +163,15 @@ private:
         }
     }
 
-    std::vector<Voxel<3>> getLocalization(std::vector<Configuration<3>>& odometries, std::vector<FT>& measurements) {
+    std::vector<sdsl::Voxel<3>> getLocalization(std::vector<sdsl::Configuration<3>>& odometries, std::vector<FT>& measurements) {
         sdsl::Predicate_Fwd2D predicate(environment_, odometries, measurements, kk_prime_ratio_, error_bound_);
         return localize_omp_forkjoin(environment_->boundingBox(), predicate, recursion_depth_, timeout_, true);
     }
 
-    std::vector<FT> getLocalizationBeliefScores(std::vector<Voxel<3>> localization) {
+    std::vector<FT> getLocalizationBeliefScores(std::vector<sdsl::Voxel<3>> localization) {
     }
 
-    void publishLocalizationPointCloud(std::vector<Voxel<3>> localization, std::vector<FT> belief) {
+    void publishLocalizationPointCloud(std::vector<sdsl::Voxel<3>> localization, std::vector<FT> belief) {
     }
 };
 
