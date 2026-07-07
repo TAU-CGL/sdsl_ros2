@@ -181,11 +181,11 @@ private:
 
     void publishLocalizationPointCloud(std::vector<sdsl::Voxel<3>> localization, std::vector<FT> belief) {
         sensor_msgs::msg::PointCloud2 msg;
-        pointcloud_msg.header.stamp = this->now();
-        pointcloud_msg.header.frame_id = "map";
-        pointcloud_msg.height = 1; // Unordered point cloud
-        pointcloud_msg.width = localization.size();
-        pointcloud_msg.is_dense = true;
+        msg.header.stamp = this->now();
+        msg.header.frame_id = "map";
+        msg.height = 1; // Unordered point cloud
+        msg.width = localization.size();
+        msg.is_dense = true;
 
         // Define point cloud fields (x, y, z)
         sensor_msgs::msg::PointField field_x, field_y, field_z;
@@ -204,13 +204,13 @@ private:
         field_z.datatype = sensor_msgs::msg::PointField::FLOAT32;
         field_z.count = 1;
 
-        pointcloud_msg.fields = {field_x, field_y, field_z};
-        pointcloud_msg.point_step = 3 * 4; // 3 floats * 4 bytes each
-        pointcloud_msg.row_step = pointcloud_msg.point_step * pointcloud_msg.width;
+        msg.fields = {field_x, field_y, field_z};
+        msg.point_step = 3 * 4; // 3 floats * 4 bytes each
+        msg.row_step = msg.point_step * msg.width;
 
         // Populate point cloud data
-        pointcloud_msg.data.resize(pointcloud_msg.row_step);
-        float* data_ptr = reinterpret_cast<float*>(pointcloud_msg.data.data());
+        msg.data.resize(msg.row_step);
+        float* data_ptr = reinterpret_cast<float*>(msg.data.data());
         for(size_t i = 0; i < localization.size(); ++i) {
             sdsl::Configuration<3> midpoint = localization[i].midpoint();
             data_ptr[i * 3 + 0] = static_cast<float>(midpoint[0]);
