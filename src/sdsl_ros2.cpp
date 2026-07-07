@@ -67,6 +67,7 @@ private:
     std::shared_ptr<sdsl::Env_PGM<3>> environment_;
     bool environmentInitialized_;
 
+    std::vector<Voxel<3>> localization_;
     double kk_prime_ratio_;
     double error_bound_;
     int recursion_depth_;
@@ -93,11 +94,7 @@ private:
         std::vector<sdsl::Configuration<3>> odometries;
         std::vector<FT> measurements;
         getOdometriesAndMeasurements(msg, odometries, measurements);
-
-        //std::vector<sdsl::Voxel<3>> localization = 
-        getLocalization(odometries, measurements);
-        //std::vector<double> belief = getLocalizationBeliefScores(localization);
-
+        updateLocalization(odometries, measurements);
         //publishLocalizationPointCloud(localization, belief);
     }
 
@@ -164,10 +161,10 @@ private:
         }
     }
 
-    std::vector<sdsl::Voxel<3>> getLocalization(std::vector<sdsl::Configuration<3>>& odometries, std::vector<FT>& measurements) {
+    std::vector<sdsl::Voxel<3>> updateLocalization(std::vector<sdsl::Configuration<3>>& odometries, std::vector<FT>& measurements) {
         sdsl::Predicate_Fwd2D<3,FT> predicate(environment_, odometries, measurements, kk_prime_ratio_, error_bound_);
         auto start = std::chrono::steady_clock::now();
-        auto result = localize_omp_forkjoin(environment_->boundingBox(), predicate, recursion_depth_, timeout_, true);
+        localization_ = localize_omp_forkjoin(environment_->boundingBox(), predicate, recursion_depth_, timeout_, true);
         auto end = std::chrono::steady_clock::now();
         std::chrono::duration<double> elapsed = end - start;
         RCLCPP_INFO(this->get_logger(), "Localization result: %d", result.size());
