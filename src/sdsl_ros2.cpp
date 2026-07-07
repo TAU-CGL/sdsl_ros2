@@ -24,14 +24,13 @@ using FT = Kernel::FT;
 #include "tf2/exceptions.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "geometry_msgs/msg/transform_stamped.hpp"
-#include "sdsl_ros2/msg/point_cloud_with_transform.hpp"
 
 using namespace std::chrono_literals;
 
 using OccupancyGrid = nav_msgs::msg::OccupancyGrid;
 using LaserScan = sensor_msgs::msg::LaserScan;
-using PointCloudWithTransform = sdsl_ros2::msg::PointCloudWithTransform;
 using TransformStamped = geometry_msgs::msg::TransformStamped;
+using PointCloud = sensor_msgs::msg::PointCloud2;
 
 class SDSL_ROS2 : public rclcpp::Node {
 public:
@@ -41,7 +40,7 @@ public:
             "map", 10, std::bind(&SDSL_ROS2::mapCallback, this, _1)); 
         sdsSubscription_ = this->create_subscription<LaserScan>(
             "sds", 10, std::bind(&SDSL_ROS2::sdsCallback, this, _1));
-        pcWithTransformPublisher_ = this->create_publisher<PointCloudWithTransform>("sdsl_raw", 10);
+        pcPublisher_ = this->create_publisher<PointCloud>("sdsl", 10);
 
         // 'Subscribe' to the pose of the robot
         tfBuffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
@@ -59,7 +58,7 @@ public:
 private:
     rclcpp::Subscription<OccupancyGrid>::SharedPtr mapSubscription_;
     rclcpp::Subscription<LaserScan>::SharedPtr sdsSubscription_;
-    rclcpp::Publisher<PointCloudWithTransform>::SharedPtr pcWithTransformPublisher_;
+    rclcpp::Publisher<PointCloud>::SharedPtr pcPublisher_;
 
     std::unique_ptr<tf2_ros::Buffer> tfBuffer_;
     std::shared_ptr<tf2_ros::TransformListener> tfListener_;
@@ -181,6 +180,44 @@ private:
     }
 
     void publishLocalizationPointCloud(std::vector<sdsl::Voxel<3>> localization, std::vector<FT> belief) {
+        sensor_msgs::msg::PointCloud2 msg;
+        pointcloud_msg.header.stamp = this->now();
+        pointcloud_msg.header.frame_id = "map";
+        pointcloud_msg.height = 1; // Unordered point cloud
+        pointcloud_msg.width = localization.size();
+        pointcloud_msg.is_dense = true;
+
+        // Define point cloud fields (x, y, z)
+        sensor_msgs::msg::PointField field_x, field_y, field_z;
+        field_x.name = "x";
+        field_x.offset = 0;
+        field_x.datatype = sensor_msgs::msg::PointField::FLOAT32;
+        field_x.count = 1;
+
+        field_y.name = "y";
+        field_y.offset = 4;
+        field_y.datatype = sensor_msgs::msg::PointField::FLOAT32;
+        field_y.count = 1;
+
+        field_z.name = "z";
+        field_z.offset = 8;
+        field_z.datatype = sensor_msgs::msg::PointField::FLOAT32;
+        field_z.count = 1;
+
+        pointcloud_msg.fields = {field_x, field_y, field_z};
+        pointcloud_msg.point_step = 3 * 4; // 3 floats * 4 bytes each
+        pointcloud_msg.row_step = pointcloud_msg.point_step * pointcloud_msg.width;
+
+        // Populate point cloud data
+        pointcloud_msg.data.resize(pointcloud_msg.row_step);
+        float* data_ptr = reinterpret_cast<float*>(pointcloud_msg.data.data());
+        for(size_t i = 0; i < localization.size(); ++i) {
+            sdsl::Configuration<3> midpoint = localization[i].midpoint();
+            data_ptr[i * 3 + 0] = static_cast<float>(midpoint[0]);
+            data_ptr[i * 3 + 1] = static_cast<float>(midpoint[1]);
+            data_ptr[i * 3 + 2] = static_cast<float>(midpoint[2]);
+        }
+        pcPublisher_->publish(msg);
     }
 };
 
