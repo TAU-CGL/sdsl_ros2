@@ -60,11 +60,11 @@ def generate_launch_description():
             actions=[configure_map_server]
         ),
         TimerAction(
-            period=10.0,  # Wait 4 seconds total before activating
+            period=20.0,  # Wait 4 seconds total before activating
             actions=[activate_map_server]
         ),
         TimerAction(
-            period=10.0,  # Start republisher after map_server is active
+            period=30.0,  # Start republisher after map_server is active
             actions=[map_republisher_node]
         )
     ])
