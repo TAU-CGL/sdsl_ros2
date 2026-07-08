@@ -46,11 +46,14 @@ public:
         tfBuffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
         tfListener_ = std::make_shared<tf2_ros::TransformListener>(*tfBuffer_);
 
+        initial_belief_ = true;
+
         // Declare parameters
         kk_prime_ratio_ = this->declare_parameter<double>("kk_prime_ratio", 0.8);
         error_bound_ = this->declare_parameter<double>("error_bound", 0.005);
         recursion_depth_ = this->declare_parameter<int>("recursion_depth", 9);
         timeout_ = this->declare_parameter<int>("timeout", 1000.0);
+        fusion_eps_ = this->declare_parameter<double>("fusion_eps", 0.05);
         
         RCLCPP_INFO(this->get_logger(), "SDSL_ROS2 node has been started.");
 	}
@@ -64,6 +67,10 @@ private:
     std::shared_ptr<tf2_ros::TransformListener> tfListener_;
     TransformStamped transform_, previousTransform_;
 
+    std::vector<sdsl::Voxel<3>> previousLocalization_;
+    std::vector<FT> previousBelief_;
+    bool initialBelief_;
+
     std::shared_ptr<sdsl::Env_PGM<3>> environment_;
     bool environmentInitialized_;
 
@@ -71,6 +78,7 @@ private:
     double error_bound_;
     int recursion_depth_;
     double timeout_;
+    double fusion_eps_;
 
 
     // --------------------------------------------------------------------------
@@ -96,6 +104,8 @@ private:
 
         std::vector<sdsl::Voxel<3>> localization = getLocalization(odometries, measurements);
         std::vector<double> belief = getLocalizationBeliefScores(localization);
+        previousLocalization_ = localization;
+        previousBelief_ = belief;
 
         publishLocalizationPointCloud(localization, belief);
     }
@@ -176,7 +186,17 @@ private:
     }
 
     std::vector<FT> getLocalizationBeliefScores(std::vector<sdsl::Voxel<3>> localization) {
-        std::vector<FT> belief;
+        if (initial_belief_) {
+            initial_belief_ = false;
+            int N = localization.size();
+            std::vector<FT> uniform;
+            for (int i = 0; i < N; ++i) uniform.push_back(1.0 / (double)N);
+            return uniform;
+        }
+        sdsl::Configuration<3> Ut = computeDeltaTransform(previousTransform_, transform_);
+        std::vector<FT> belief = sdsl::fusion_2d<FT>(
+            previousLocalization_, previousBelief_, localization, Ut, fusion_eps_
+        );
         return belief;
     }
 
@@ -189,7 +209,7 @@ private:
         msg.is_dense = true;
 
         // Define point cloud fields (x, y, z)
-        sensor_msgs::msg::PointField field_x, field_y, field_z;
+        sensor_msgs::msg::PointField field_x, field_y, field_z, field_score;
         field_x.name = "x";
         field_x.offset = 0;
         field_x.datatype = sensor_msgs::msg::PointField::FLOAT32;
@@ -205,8 +225,13 @@ private:
         field_z.datatype = sensor_msgs::msg::PointField::FLOAT32;
         field_z.count = 1;
 
-        msg.fields = {field_x, field_y, field_z};
-        msg.point_step = 3 * 4; // 3 floats * 4 bytes each
+        field_score.name = "score";
+        field_score.offset = 12;
+        field_score.datatype = sensor_msgs::msg::PointField::FLOAT32;
+        field_score.count = 1;
+
+        msg.fields = {field_x, field_y, field_z, field_score};
+        msg.point_step = 4 * 4; // 3 floats * 4 bytes each
         msg.row_step = msg.point_step * msg.width;
 
         // Populate point cloud data
@@ -214,11 +239,28 @@ private:
         float* data_ptr = reinterpret_cast<float*>(msg.data.data());
         for(size_t i = 0; i < localization.size(); ++i) {
             sdsl::Configuration<3> midpoint = localization[i].midpoint();
-            data_ptr[i * 3 + 0] = static_cast<float>(midpoint[0]);
-            data_ptr[i * 3 + 1] = static_cast<float>(midpoint[1]);
-            data_ptr[i * 3 + 2] = static_cast<float>(midpoint[2]);
+            data_ptr[i * 4 + 0] = static_cast<float>(midpoint[0]);
+            data_ptr[i * 4 + 1] = static_cast<float>(midpoint[1]);
+            data_ptr[i * 4 + 2] = static_cast<float>(midpoint[2]);
+            data_ptr[i * 4 + 3] = static_cast<float>(belief[i]);
         }
         pcPublisher_->publish(msg);
+    }
+
+    double quaternionToYaw(const geometry_msgs::msg::Quaternion& q) {
+        return std::atan2(q.z, q.w) * 2.0;
+    }
+
+    sdsl::Configuration<3> computeDeltaTransform(const TransformStamped& prev, const TransformStamped& curr) {
+        double x_prev = prev.transform.translation.x;
+        double y_prev = prev.transform.translation.y;
+        double yaw_prev = quaternionToYaw(prev.transform.rotation);
+
+        double x_curr = curr.transform.translation.x;
+        double y_curr = curr.transform.translation.y;
+        double yaw_curr = quaternionToYaw(curr.transform.rotation);
+
+        return sdsl::Configuration<3>(x_curr - x_prev, y_curr - y_prev, yaw_curr - yaw_prev);
     }
 };
 
