@@ -108,6 +108,15 @@ private:
         previousLocalization_ = localization;
         previousBelief_ = belief;
 
+        {
+            for (int i = 0; i < belief.size(); ++i) {
+                if (std::isnan(belief[i])) {
+                    initial_belief_ = true;
+                    break;
+                }
+            }
+        }
+
         publishLocalizationPointCloud(localization, belief);
     }
 
