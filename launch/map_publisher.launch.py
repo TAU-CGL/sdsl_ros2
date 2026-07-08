@@ -13,7 +13,8 @@ def generate_launch_description():
     # Declare map file argument
     map_yaml_arg = DeclareLaunchArgument(
         'map_yaml_file',
-        default_value=os.path.join(pkg_dir, 'config', 'my_map.yaml'),
+#        default_value=os.path.join(pkg_dir, 'config', 'my_map.yaml'),
+        default_value="/root/maps/my_map.yaml",
         description='Full path to map yaml file to load'
     )
     
@@ -55,15 +56,15 @@ def generate_launch_description():
         map_yaml_arg,
         map_server_node,
         TimerAction(
-            period=2.0,  # Wait 2 seconds for node to start
+            period=10.0,  # Wait 2 seconds for node to start
             actions=[configure_map_server]
         ),
         TimerAction(
-            period=4.0,  # Wait 4 seconds total before activating
+            period=10.0,  # Wait 4 seconds total before activating
             actions=[activate_map_server]
         ),
         TimerAction(
-            period=5.0,  # Start republisher after map_server is active
+            period=10.0,  # Start republisher after map_server is active
             actions=[map_republisher_node]
         )
     ])
