@@ -69,7 +69,7 @@ private:
 
     std::vector<sdsl::Voxel<3>> previousLocalization_;
     std::vector<FT> previousBelief_;
-    bool initialBelief_;
+    bool initial_belief_;
 
     std::shared_ptr<sdsl::Env_PGM<3>> environment_;
     bool environmentInitialized_;
@@ -242,7 +242,6 @@ private:
             data_ptr[i * 4 + 0] = static_cast<float>(midpoint[0]);
             data_ptr[i * 4 + 1] = static_cast<float>(midpoint[1]);
             data_ptr[i * 4 + 2] = static_cast<float>(midpoint[2]);
-            data_ptr[i * 4 + 3] = static_cast<float>(belief[i]);
         }
         pcPublisher_->publish(msg);
     }
