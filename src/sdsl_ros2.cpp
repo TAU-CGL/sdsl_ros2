@@ -198,6 +198,11 @@ private:
         std::vector<FT> belief = sdsl::fusion_2d<FT>(
             previousLocalization_, previousBelief_, localization, Ut, fusion_eps_
         );
+
+        for (int i = 0; i < belief.size(); ++i) {
+            RCLCPP_INFO(this->get_logger(), "Belief: %.4f", belief[i]);
+        }
+
         return belief;
     }
 
