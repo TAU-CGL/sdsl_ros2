@@ -49,7 +49,7 @@ public:
         // Declare parameters
         kk_prime_ratio_ = this->declare_parameter<double>("kk_prime_ratio", 0.8);
         error_bound_ = this->declare_parameter<double>("error_bound", 0.005);
-        recursion_depth_ = this->declare_parameter<int>("recursion_depth", 7);
+        recursion_depth_ = this->declare_parameter<int>("recursion_depth", 8);
         timeout_ = this->declare_parameter<int>("timeout", 1000.0);
         
         RCLCPP_INFO(this->get_logger(), "SDSL_ROS2 node has been started.");
