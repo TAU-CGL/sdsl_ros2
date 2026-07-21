@@ -106,7 +106,7 @@ private:
         getOdometriesAndMeasurements(msg, odometries, measurements);
 
         //std::vector<sdsl::Voxel<3>> localization = getLocalization(odometries, measurements);
-        std::vector<sdsl::Vocel<3>> localization = envLUT_.query(measurements, kk_prime_ratio_, error_bound_);
+        std::vector<sdsl::Voxel<3>> localization = envLUT_.query(measurements, kk_prime_ratio_, error_bound_);
         std::vector<double> belief = getLocalizationBeliefScores(localization);
         previousLocalization_ = localization;
         previousBelief_ = belief;
